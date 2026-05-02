@@ -168,7 +168,15 @@ export const GenerateResponseResponse = zod.object({
  * @summary Get available sources
  */
 export const GetSourcesResponse = zod.object({
-  sources: zod.array(zod.string()),
+  sources: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      active: zod.boolean(),
+      description: zod.string(),
+      count: zod.number(),
+    }),
+  ),
 });
 
 /**

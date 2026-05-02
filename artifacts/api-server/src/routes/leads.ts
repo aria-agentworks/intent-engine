@@ -15,29 +15,25 @@ import {
   UpdateLeadStatusBody,
   UpdateLeadStatusResponse,
 } from "@workspace/api-zod";
-import { fetchRedditLeads, getExampleLeads } from "../lib/reddit";
+import { fetchAllLeads } from "../lib/sources/index";
+import type { SourceMeta } from "../lib/sources/index";
 import { generateResponse } from "../lib/responder";
+import type { ScoredLead } from "../lib/types";
 
 const router: IRouter = Router();
 
-let cachedLeads: Awaited<ReturnType<typeof fetchRedditLeads>> = [];
+let cachedLeads: ScoredLead[] = [];
+let cachedSourceMeta: SourceMeta[] = [];
 let lastFetchedAt: Date | null = null;
 
-async function getLeads() {
+async function getLeads(): Promise<ScoredLead[]> {
   const now = new Date();
   const stale = !lastFetchedAt || now.getTime() - lastFetchedAt.getTime() > 5 * 60 * 1000;
 
   if (stale) {
-    try {
-      const live = await fetchRedditLeads();
-      if (live.length > 0) {
-        cachedLeads = live;
-      } else {
-        cachedLeads = getExampleLeads();
-      }
-    } catch {
-      cachedLeads = getExampleLeads();
-    }
+    const { leads, sourceMeta } = await fetchAllLeads();
+    cachedLeads = leads;
+    cachedSourceMeta = sourceMeta;
     lastFetchedAt = now;
   }
 
@@ -84,7 +80,7 @@ router.get("/leads", async (req, res): Promise<void> => {
 });
 
 router.post("/leads/refresh", async (_req, res): Promise<void> => {
-  lastFetchedAt = null; // force cache invalidation
+  lastFetchedAt = null;
   const leads = await getLeads();
 
   res.json(
@@ -193,13 +189,11 @@ router.post("/leads/:id/save", async (req, res): Promise<void> => {
     .where(eq(savedLeadsTable.id, id));
 
   if (existing.length > 0) {
-    // Already saved — unsave it
     await db.delete(savedLeadsTable).where(eq(savedLeadsTable.id, id));
     res.json(SaveLeadResponse.parse({ saved: false, lead_id: id }));
     return;
   }
 
-  // Find the lead in cached leads and save it
   const lead = cachedLeads.find((l) => l.id === id);
   if (!lead) {
     res.status(404).json({ error: "Lead not found" });
@@ -234,7 +228,6 @@ router.post("/leads/:id/respond", async (req, res): Promise<void> => {
   const lead = cachedLeads.find((l) => l.id === id);
 
   if (!lead) {
-    // Try to find in saved leads
     const [saved] = await db.select().from(savedLeadsTable).where(eq(savedLeadsTable.id, id));
     if (!saved) {
       res.status(404).json({ error: "Lead not found" });
@@ -250,7 +243,11 @@ router.post("/leads/:id/respond", async (req, res): Promise<void> => {
 });
 
 router.get("/sources", async (_req, res): Promise<void> => {
-  res.json(GetSourcesResponse.parse({ sources: ["reddit"] }));
+  // Ensure we have fresh source meta by calling getLeads if not yet cached
+  if (cachedSourceMeta.length === 0) {
+    await getLeads();
+  }
+  res.json(GetSourcesResponse.parse({ sources: cachedSourceMeta }));
 });
 
 export default router;

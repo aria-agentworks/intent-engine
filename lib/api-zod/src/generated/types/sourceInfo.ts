@@ -5,8 +5,11 @@
  * Intent Engine API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { SourceInfo } from "./sourceInfo";
 
-export interface SourcesResponse {
-  sources: SourceInfo[];
+export interface SourceInfo {
+  id: string;
+  name: string;
+  active: boolean;
+  description: string;
+  count: number;
 }

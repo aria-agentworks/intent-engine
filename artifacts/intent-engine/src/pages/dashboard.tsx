@@ -1,4 +1,4 @@
-import { useGetLeadsStats, useGetLeads, useHealthCheck, useRefreshLeads, getGetLeadsQueryKey, getGetLeadsStatsQueryKey } from "@workspace/api-client-react";
+import { useGetLeadsStats, useGetLeads, useHealthCheck, useRefreshLeads, getGetLeadsQueryKey, getGetLeadsStatsQueryKey, useGetSources } from "@workspace/api-client-react";
 import { LeadCard } from "@/components/lead-card";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,6 +6,7 @@ import { Activity, AlertCircle, Database, Target, TrendingUp, Users, RefreshCw }
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ export default function Dashboard() {
   );
   
   const { data: health } = useHealthCheck();
+  const { data: sourcesData, isLoading: sourcesLoading } = useGetSources();
 
   const refreshMutation = useRefreshLeads();
 
@@ -181,11 +183,37 @@ export default function Dashboard() {
             </div>
             
             <div className="border border-border bg-card rounded-md p-4">
-              {statsLoading ? (
+              {statsLoading || sourcesLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-8 w-full bg-muted/50" />
                   <Skeleton className="h-8 w-full bg-muted/50" />
                   <Skeleton className="h-8 w-full bg-muted/50" />
+                </div>
+              ) : sourcesData?.sources && sourcesData.sources.length > 0 ? (
+                <div className="space-y-4">
+                  {sourcesData.sources.map(source => (
+                    <div key={source.id} className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <Users className="h-3 w-3 text-muted-foreground" />
+                          {source.name}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {source.active ? (
+                            <Badge variant="outline" className="text-[10px] h-5 border-green-500/30 text-green-500 bg-green-500/10">ACTIVE</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] h-5 border-muted-foreground/30 text-muted-foreground bg-muted/50">INACTIVE</Badge>
+                          )}
+                          <div className="text-sm font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">
+                            {source.count}
+                          </div>
+                        </div>
+                      </div>
+                      {!source.active && (
+                        <p className="text-xs text-muted-foreground ml-5">Add API key to activate</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : stats?.by_source && stats.by_source.length > 0 ? (
                 <div className="space-y-3">

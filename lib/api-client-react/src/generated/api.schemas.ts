@@ -65,8 +65,16 @@ export interface SaveLeadResult {
   lead_id: string;
 }
 
+export interface SourceInfo {
+  id: string;
+  name: string;
+  active: boolean;
+  description: string;
+  count: number;
+}
+
 export interface SourcesResponse {
-  sources: string[];
+  sources: SourceInfo[];
 }
 
 export interface Keyword {

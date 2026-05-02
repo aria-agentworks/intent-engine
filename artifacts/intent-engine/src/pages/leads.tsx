@@ -70,7 +70,7 @@ export default function LeadsExplorer() {
                 <SelectContent>
                   <SelectItem value="all">ALL_SOURCES</SelectItem>
                   {sourcesData?.sources.map((s) => (
-                    <SelectItem key={s} value={s}>{s.toUpperCase()}</SelectItem>
+                    <SelectItem key={s.id} value={s.id}>{s.name.toUpperCase()} ({s.count})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

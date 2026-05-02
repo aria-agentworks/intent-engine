@@ -19,6 +19,7 @@ export * from "./leadsResponse";
 export * from "./leadsStats";
 export * from "./saveLeadResult";
 export * from "./sourceCount";
+export * from "./sourceInfo";
 export * from "./sourcesResponse";
 export * from "./testPhraseInput";
 export * from "./testPhraseResult";

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Bookmark, BookmarkCheck, ExternalLink, Bot, Copy, Check } from "lucide-react";
-import { SiReddit, SiX, SiGithub, SiHackerone } from "react-icons/si";
+import { SiReddit, SiX, SiGithub, SiHackerone, SiYcombinator } from "react-icons/si";
 import { Lead } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useSaveLead, getGetSavedLeadsQueryKey, getGetLeadsQueryKey, useGenerateResponse } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,6 +79,7 @@ export function LeadCard({ lead, statusSelector }: LeadCardProps) {
     if (s.includes('reddit')) return <SiReddit className="text-[#FF4500] h-4 w-4" />;
     if (s.includes('twitter') || s.includes('x')) return <SiX className="h-4 w-4 text-foreground" />;
     if (s.includes('github')) return <SiGithub className="h-4 w-4 text-foreground" />;
+    if (s === 'hacker_news' || s.includes('hacker news') || s.includes('hackernews')) return <SiYcombinator className="text-[#FF6600] h-4 w-4" />;
     if (s.includes('hacker')) return <SiHackerone className="h-4 w-4 text-foreground" />;
     return <span className="text-xs uppercase text-muted-foreground">[{lead.source}]</span>;
   };

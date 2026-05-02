@@ -450,13 +450,33 @@ components:
         - saved
         - lead_id
 
+    SourceInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        active:
+          type: boolean
+        description:
+          type: string
+        count:
+          type: integer
+      required:
+        - id
+        - name
+        - active
+        - description
+        - count
+
     SourcesResponse:
       type: object
       properties:
         sources:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/SourceInfo"
       required:
         - sources
 

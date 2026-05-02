@@ -17,6 +17,7 @@ export * from "./keywordsResponse";
 export * from "./lead";
 export * from "./leadsResponse";
 export * from "./leadsStats";
+export * from "./replyVariant";
 export * from "./saveLeadResult";
 export * from "./sourceCount";
 export * from "./sourceInfo";

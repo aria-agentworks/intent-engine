@@ -5,10 +5,9 @@
  * Intent Engine API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ReplyVariant } from "./replyVariant";
 
-export interface GeneratedResponse {
+export interface ReplyVariant {
+  label: string;
   message: string;
-  lead_id: string;
-  variants: ReplyVariant[];
+  style: string;
 }

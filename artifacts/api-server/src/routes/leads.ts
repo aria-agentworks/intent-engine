@@ -17,7 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { fetchAllLeads } from "../lib/sources/index";
 import type { SourceMeta } from "../lib/sources/index";
-import { generateResponse } from "../lib/responder";
+import { generateResponse, generateVariants } from "../lib/responder";
 import type { ScoredLead } from "../lib/types";
 
 const router: IRouter = Router();
@@ -233,13 +233,13 @@ router.post("/leads/:id/respond", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Lead not found" });
       return;
     }
-    const message = generateResponse(saved.text, saved.source);
-    res.json(GenerateResponseResponse.parse({ message, lead_id: id }));
+    const variants = generateVariants(saved.text, saved.source);
+    res.json(GenerateResponseResponse.parse({ message: variants[0].message, variants, lead_id: id }));
     return;
   }
 
-  const message = generateResponse(lead.text, lead.source);
-  res.json(GenerateResponseResponse.parse({ message, lead_id: id }));
+  const variants = generateVariants(lead.text, lead.source);
+  res.json(GenerateResponseResponse.parse({ message: variants[0].message, variants, lead_id: id }));
 });
 
 router.get("/sources", async (_req, res): Promise<void> => {

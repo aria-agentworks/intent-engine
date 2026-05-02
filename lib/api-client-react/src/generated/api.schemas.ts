@@ -46,9 +46,16 @@ export interface LeadsStats {
   last_run?: string | null;
 }
 
+export interface ReplyVariant {
+  label: string;
+  message: string;
+  style: string;
+}
+
 export interface GeneratedResponse {
   message: string;
   lead_id: string;
+  variants: ReplyVariant[];
 }
 
 export interface UpdateLeadStatusInput {

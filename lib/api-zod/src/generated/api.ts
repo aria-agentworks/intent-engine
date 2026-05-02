@@ -161,6 +161,13 @@ export const GenerateResponseParams = zod.object({
 export const GenerateResponseResponse = zod.object({
   message: zod.string(),
   lead_id: zod.string(),
+  variants: zod.array(
+    zod.object({
+      label: zod.string(),
+      message: zod.string(),
+      style: zod.string(),
+    }),
+  ),
 });
 
 /**

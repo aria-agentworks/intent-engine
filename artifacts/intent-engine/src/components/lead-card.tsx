@@ -2,7 +2,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Bookmark, BookmarkCheck, ExternalLink, Bot, Copy, Check } from "lucide-react";
 import { SiReddit, SiX, SiGithub, SiHackerone, SiYcombinator } from "react-icons/si";
-import { Lead } from "@workspace/api-client-react/src/generated/api.schemas";
+import { Lead, ReplyVariant } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useSaveLead, getGetSavedLeadsQueryKey, getGetLeadsQueryKey, useGenerateResponse } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -20,17 +20,17 @@ export function LeadCard({ lead, statusSelector }: LeadCardProps) {
   const { toast } = useToast();
   const saveLead = useSaveLead();
   const generateResponse = useGenerateResponse();
-  const [response, setResponse] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [variants, setVariants] = useState<ReplyVariant[] | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const isHigh = lead.intent_score >= 8;
   const isMedium = lead.intent_score >= 5 && lead.intent_score < 8;
 
-  const handleCopy = async () => {
-    if (!response) return;
-    await navigator.clipboard.writeText(response);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async (text: string, index: number) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const handleSave = () => {
@@ -61,12 +61,13 @@ export function LeadCard({ lead, statusSelector }: LeadCardProps) {
       { id: lead.id },
       {
         onSuccess: (data) => {
-          setResponse(data.message);
+          setVariants(data.variants ?? null);
+          setActiveTab(0);
         },
         onError: () => {
           toast({
             title: "Generation Failed",
-            description: "Could not generate AI response.",
+            description: "Could not generate outreach variants.",
             variant: "destructive",
           });
         }
@@ -76,20 +77,22 @@ export function LeadCard({ lead, statusSelector }: LeadCardProps) {
 
   const SourceIcon = () => {
     const s = lead.source.toLowerCase();
-    if (s.includes('reddit')) return <SiReddit className="text-[#FF4500] h-4 w-4" />;
-    if (s.includes('twitter') || s.includes('x')) return <SiX className="h-4 w-4 text-foreground" />;
-    if (s.includes('github')) return <SiGithub className="h-4 w-4 text-foreground" />;
-    if (s === 'hacker_news' || s.includes('hacker news') || s.includes('hackernews')) return <SiYcombinator className="text-[#FF6600] h-4 w-4" />;
-    if (s.includes('hacker')) return <SiHackerone className="h-4 w-4 text-foreground" />;
+    if (s.includes("reddit")) return <SiReddit className="text-[#FF4500] h-4 w-4" />;
+    if (s.includes("twitter") || s === "twitter") return <SiX className="h-4 w-4 text-foreground" />;
+    if (s.includes("github")) return <SiGithub className="h-4 w-4 text-foreground" />;
+    if (s === "hacker_news" || s.includes("hacker news")) return <SiYcombinator className="text-[#FF6600] h-4 w-4" />;
+    if (s.includes("hacker")) return <SiHackerone className="h-4 w-4 text-foreground" />;
     return <span className="text-xs uppercase text-muted-foreground">[{lead.source}]</span>;
   };
 
+  const activeVariant = variants?.[activeTab];
+
   return (
     <div className="border border-border bg-card rounded-md overflow-hidden flex flex-col relative group transition-colors hover:border-primary/50">
-      <div className="absolute top-0 left-0 w-1 h-full" style={{ 
-        backgroundColor: isHigh ? 'var(--chart-1)' : isMedium ? 'var(--chart-2)' : 'var(--chart-3)' 
+      <div className="absolute top-0 left-0 w-1 h-full" style={{
+        backgroundColor: isHigh ? "var(--chart-1)" : isMedium ? "var(--chart-2)" : "var(--chart-3)"
       }} />
-      
+
       <div className="p-5 pl-6 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -145,36 +148,84 @@ export function LeadCard({ lead, statusSelector }: LeadCardProps) {
               </Button>
             )}
           </div>
-          <Button 
-            variant="secondary" 
-            size="sm" 
-            className="h-8 text-xs font-mono"
-            onClick={handleGenerateResponse}
-            disabled={generateResponse.isPending || !!response}
-          >
-            {generateResponse.isPending ? (
-              <span className="animate-pulse">GENERATING...</span>
-            ) : (
-              <>
-                <Bot className="h-3 w-3 mr-2" />
-                GENERATE_REPLY
-              </>
-            )}
-          </Button>
+          {!variants && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 text-xs font-mono"
+              onClick={handleGenerateResponse}
+              disabled={generateResponse.isPending}
+            >
+              {generateResponse.isPending ? (
+                <span className="animate-pulse">GENERATING...</span>
+              ) : (
+                <>
+                  <Bot className="h-3 w-3 mr-2" />
+                  GENERATE_REPLY
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
-        {response && (
-          <div className="mt-2 p-3 bg-muted/30 border border-primary/20 rounded-md relative">
-            <div className="absolute -top-2.5 left-4 bg-background px-1 text-[10px] text-primary font-bold tracking-wider">
-              AI_GENERATED_RESPONSE
+        {variants && variants.length > 0 && (
+          <div className="mt-1 border border-primary/20 rounded-md overflow-hidden">
+            <div className="flex border-b border-border/60 bg-muted/20">
+              {variants.map((v, i) => (
+                <button
+                  key={v.label}
+                  onClick={() => setActiveTab(i)}
+                  className={cn(
+                    "flex-1 px-3 py-2 text-[10px] font-mono font-bold tracking-wider transition-colors",
+                    activeTab === i
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  )}
+                >
+                  {v.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setVariants(null)}
+                className="px-3 py-2 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
-            <p className="text-sm font-sans text-foreground/90 mt-1">{response}</p>
-            <div className="flex justify-end mt-3">
-              <Button size="sm" className="h-7 text-xs bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCopy}>
-                {copied ? <Check className="h-3 w-3 mr-2" /> : <Copy className="h-3 w-3 mr-2" />}
-                {copied ? "COPIED" : "COPY"}
-              </Button>
-            </div>
+
+            {activeVariant && (
+              <div className="p-4 bg-muted/10">
+                <p className="text-[10px] text-muted-foreground font-mono mb-3 italic">
+                  {activeVariant.style}
+                </p>
+                <p className="text-sm font-sans text-foreground/90 leading-relaxed">
+                  {activeVariant.message}
+                </p>
+                <div className="flex items-center justify-between mt-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs font-mono text-muted-foreground"
+                    onClick={handleGenerateResponse}
+                    disabled={generateResponse.isPending}
+                  >
+                    {generateResponse.isPending ? "REGENERATING..." : "REGENERATE"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs font-mono bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => handleCopy(activeVariant.message, activeTab)}
+                  >
+                    {copiedIndex === activeTab ? (
+                      <><Check className="h-3 w-3 mr-1.5" />COPIED</>
+                    ) : (
+                      <><Copy className="h-3 w-3 mr-1.5" />COPY</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

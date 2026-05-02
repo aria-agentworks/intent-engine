@@ -49,17 +49,38 @@ Tables in `lib/db/src/schema/`:
 
 ## Voice Agent Architecture
 
-**Call flow**: Twilio inbound → `POST /api/voice/inbound` → greeting → `<Gather>` STT → `POST /api/voice/gather` → GPT-5-mini → OpenAI TTS → `<Play>` audio URL → loop
+### Real-time WebSocket call flow (primary, Whisper + GPT + OpenAI TTS)
+```
+Twilio inbound call
+  → POST /api/voice/stream-inbound  (returns TwiML <Connect><Stream>)
+  → WS upgrade /api/voice/stream    (Twilio Media Streams WebSocket)
+  → mulaw decode → VAD (energy-based, 800ms silence) → 8kHz PCM buffer
+  → Whisper-1 STT (WAV file)
+  → GPT-4o-mini with system prompt + tool calls (book_appointment, transfer_call, etc.)
+  → OpenAI TTS (PCM 24kHz) → resample to 8kHz → mulaw encode → Twilio stream
+```
 
-**Key routes** (`artifacts/api-server/src/routes/voice/`):
-- `config.ts` — GET/PUT `/voice/config` (business settings, masks auth token)
-- `twilio.ts` — POST `/voice/inbound`, `/voice/gather`, `/voice/outbound-twiml`, `/voice/status`
-- `calls.ts` — GET `/voice/calls/stats`, `/voice/calls`, `/voice/calls/:id`, `/voice/tts/:messageId`, POST `/voice/outbound`
-- `gpt.ts` — `generateVoiceResponse()` with business context injection
+### Legacy Gather-based flow (backward compatible, kept intact)
+```
+POST /api/voice/inbound → <Gather> STT → POST /api/voice/gather → GPT → TTS → <Play>
+```
 
-**TTS endpoint**: `GET /api/voice/tts/:messageId` — fetches message, calls OpenAI TTS, returns MP3 for Twilio `<Play>`
+**Key source files** (`artifacts/api-server/src/routes/voice/`):
+- `stream.ts` — WebSocket brain: Twilio ↔ Whisper ↔ GPT ↔ TTS pipeline
+- `mulaw.ts` — G.711 mulaw codec + WAV wrapper + 24kHz→8kHz resampler (no ffmpeg)
+- `vad.ts` — energy-based VAD, 20ms frames, 800ms silence detection
+- `gpt.ts` — `generateVoiceResponseWithFunctions()` with tool call support
+- `config.ts` — GET/PUT `/voice/config`, returns `webhookUrl` + `streamWebhookUrl` + `statusCallbackUrl`
+- `twilio.ts` — all TwiML routes (stream-inbound, inbound, gather, outbound, status)
+- `calls.ts` — call log CRUD, stats, TTS proxy
+- `locations.ts` — multi-location CRUD for voiceConfigs
+- `appointments.ts`, `campaigns.ts`, `dnc.ts`, `integrations.ts` — feature routes
+
+**WebSocket endpoint**: `ws://<host>/api/voice/stream` — HTTP upgrade handled in `index.ts`
 
 **Business templates**: medical, dental, legal, restaurant, salon, general — each has preset greeting and instructions
+
+**DB tables**: `voice_configs` (multi-row, one per location), `voice_calls`, `voice_messages`, `voice_users`, `voice_appointments`, `voice_campaigns`, `voice_campaign_contacts`, `voice_dnc`, `voice_usage_events`
 
 ## Important Patterns
 
@@ -68,14 +89,18 @@ Tables in `lib/db/src/schema/`:
 - **Scorer cache** — `lib/scorer.ts` caches active keywords for 60s; call `invalidateScorerCache()` after keyword changes
 - **Lead cache** — `routes/leads.ts` caches all-source results for 5 min; `POST /leads/refresh` force-invalidates
 - **Twilio auth token** — always masked as `••••••••` in API responses; only updated when a new non-masked value is submitted
-- **Webhook URL** — dynamically computed from request headers: `${proto}://${host}/api/voice/inbound`
+- **Stream webhook** — dynamically computed from request headers; `streamWebhookUrl` = `${proto}://${host}/api/voice/stream-inbound`
+- **OpenAI TTS format** — `response_format: "pcm"` = raw 16-bit LE PCM at 24kHz; resample to 8kHz mulaw for Twilio
+- **Greeting** — played immediately on WebSocket connect using TTS before caller speaks
+- **VAD silence threshold** — 800ms of silence triggers STT; tunable in `vad.ts`
 
 ## Voice Agent Setup (for users)
 
-1. Go to **Configure** — pick business type template, fill in name, greeting, instructions
+1. Go to **Configure** — pick business type template, fill in name, greeting, instructions, hours
 2. Go to **Settings** — enter Twilio Account SID, Auth Token, phone number, enable agent
-3. Copy the Webhook URL from Settings → paste into Twilio console as the phone number's Voice webhook (HTTP POST)
-4. Use **Outbound** to place outbound AI calls
+3. Copy the **Real-time AI** webhook URL from Settings → paste into Twilio console as the phone number's Voice webhook (HTTP POST)
+4. Copy the **Status Callback** URL → paste into Twilio's Call Status Changes field
+5. Use **Outbound** to place outbound AI calls
 
 ## Lead Sources (Intent Engine)
 

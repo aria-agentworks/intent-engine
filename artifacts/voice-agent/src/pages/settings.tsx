@@ -149,31 +149,47 @@ export default function Settings() {
         </Alert>
       )}
 
-      {/* Webhook URL */}
+      {/* Webhook URLs */}
       <Card className="border-card-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Webhook URL</CardTitle>
+          <CardTitle className="text-sm font-semibold">Twilio Webhook URLs</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Copy this URL and paste it as your Twilio phone number's Voice webhook (HTTP POST)
+            Configure your Twilio phone number to call these URLs when a call arrives
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           {isMissingCredentials && (
             <Alert className="border-amber-200 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 text-sm">
-                Add your Twilio credentials below, then set this webhook URL in your Twilio console.
+                Add your Twilio credentials below, then set a webhook URL in your Twilio console.
               </AlertDescription>
             </Alert>
           )}
 
+          {/* Real-time stream (recommended) */}
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Inbound Voice URL</Label>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Real-time AI (Recommended)</Label>
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">WebSocket</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Whisper STT + GPT + OpenAI TTS — sub-second response, natural conversation</p>
             <div className="relative">
               <code className="flex items-center gap-2 rounded-lg bg-muted border border-border px-3 py-2.5 pr-10 text-xs font-mono text-foreground break-all">
-                {webhookUrl || "Save Twilio credentials first"}
+                {(config as Record<string, string> | undefined)?.streamWebhookUrl || (webhookUrl ? webhookUrl.replace("/inbound", "/stream-inbound") : "Save credentials first")}
               </code>
-              {webhookUrl && <CopyButton text={webhookUrl} />}
+              {webhookUrl && <CopyButton text={(config as Record<string, string> | undefined)?.streamWebhookUrl ?? webhookUrl.replace("/inbound", "/stream-inbound")} />}
+            </div>
+          </div>
+
+          {/* Status callback */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Call Status Callback</Label>
+            <div className="relative">
+              <code className="flex items-center gap-2 rounded-lg bg-muted border border-border px-3 py-2.5 pr-10 text-xs font-mono text-foreground break-all">
+                {(config as Record<string, string> | undefined)?.statusCallbackUrl || (webhookUrl ? webhookUrl.replace("/inbound", "/status") : "Save credentials first")}
+              </code>
+              {webhookUrl && <CopyButton text={(config as Record<string, string> | undefined)?.statusCallbackUrl ?? webhookUrl.replace("/inbound", "/status")} />}
             </div>
           </div>
 
@@ -184,9 +200,9 @@ export default function Settings() {
               <ol className="list-decimal list-inside space-y-0.5">
                 <li>Go to <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Twilio Console → Phone Numbers → Active Numbers</a></li>
                 <li>Click your number (<span className="font-mono">{config?.twilioPhoneNumber || "your number"}</span>)</li>
-                <li>Under <strong>Voice Configuration</strong> → "A call comes in"</li>
-                <li>Set to <strong>Webhook</strong> → paste the URL above → <strong>HTTP POST</strong></li>
-                <li>Also set <strong>Call Status Changes</strong> to the same URL with <code className="bg-muted px-1 rounded">/status</code> suffix</li>
+                <li>Under <strong>Voice Configuration</strong> → "A call comes in" → <strong>Webhook, HTTP POST</strong></li>
+                <li>Paste the <strong>Real-time AI</strong> URL above</li>
+                <li>Set <strong>Call Status Changes</strong> → paste the Status Callback URL</li>
                 <li>Click <strong>Save Configuration</strong></li>
               </ol>
             </div>

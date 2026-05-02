@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { voiceCalls, voiceMessages, voiceConfigs } from "@workspace/db";
 import { eq, desc, count, sql, isNotNull, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { isDncBlocked } from "./dnc.js";
 
 const router = Router();
 
@@ -290,6 +291,12 @@ router.post("/voice/outbound", async (req, res) => {
 
     if (!toNumber) {
       return res.status(400).json({ error: "toNumber is required" });
+    }
+
+    // DNC compliance check before placing any outbound call
+    const blocked = await isDncBlocked(toNumber);
+    if (blocked) {
+      return res.status(403).json({ error: "This number is on the Do-Not-Call list and cannot be dialed." });
     }
 
     const config = await db.query.voiceConfigs.findFirst();

@@ -29,6 +29,8 @@ function maskConfig(config: typeof voiceConfigs.$inferSelect, baseUrl: string) {
     ...config,
     twilioAuthToken: config.twilioAuthToken ? "••••••••" : null,
     webhookUrl: `${baseUrl}/api/voice/inbound`,
+    streamWebhookUrl: `${baseUrl}/api/voice/stream-inbound`,
+    statusCallbackUrl: `${baseUrl}/api/voice/status`,
   };
 }
 

@@ -135,6 +135,23 @@ export interface DeleteKeywordResult {
   id: string;
 }
 
+export interface SourceProfile {
+  karma: number | null;
+  account_age_days: number | null;
+  bio: string | null;
+  website: string | null;
+  profile_url: string | null;
+}
+
+export interface EnrichmentData {
+  lead_id: string;
+  emails: string[];
+  phones: string[];
+  urls: string[];
+  company: string | null;
+  source_profile: SourceProfile | null;
+}
+
 export type GetLeadsParams = {
   min_score?: number;
   source?: string;

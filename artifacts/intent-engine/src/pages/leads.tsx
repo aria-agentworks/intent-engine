@@ -17,6 +17,7 @@ export default function LeadsExplorer() {
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [source, setSource] = useState<string | undefined>(undefined);
   const [subredditFilter, setSubredditFilter] = useState("");
+  const [textSearch, setTextSearch] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -32,8 +33,10 @@ export default function LeadsExplorer() {
   const { data: sourcesData } = useGetSources();
 
   const filteredLeads = leadsData?.leads?.filter(lead => {
-    if (!subredditFilter) return true;
-    return lead.subreddit?.toLowerCase().includes(subredditFilter.toLowerCase());
+    if (subredditFilter && !lead.subreddit?.toLowerCase().includes(subredditFilter.toLowerCase())) return false;
+    if (textSearch && !lead.text.toLowerCase().includes(textSearch.toLowerCase()) &&
+        !lead.author?.toLowerCase().includes(textSearch.toLowerCase())) return false;
+    return true;
   });
 
   const selectedLeads = filteredLeads?.filter(l => selectedIds.has(l.id)) ?? [];
@@ -96,7 +99,16 @@ export default function LeadsExplorer() {
           </div>
 
           <div className="flex flex-1 flex-col sm:flex-row gap-4">
-            <div className="w-full sm:w-48">
+            <div className="relative w-full sm:w-56">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="search posts, authors..."
+                value={textSearch}
+                onChange={(e) => setTextSearch(e.target.value)}
+                className="font-mono text-xs h-9 pl-8"
+              />
+            </div>
+            <div className="w-full sm:w-44">
               <Input
                 placeholder="filter by subreddit..."
                 value={subredditFilter}

@@ -171,6 +171,31 @@ export const GenerateResponseResponse = zod.object({
 });
 
 /**
+ * Extract contact info from post text and fetch the author's public platform profile
+ * @summary Enrich a lead
+ */
+export const EnrichLeadParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const EnrichLeadResponse = zod.object({
+  lead_id: zod.string(),
+  emails: zod.array(zod.string()),
+  phones: zod.array(zod.string()),
+  urls: zod.array(zod.string()),
+  company: zod.string().nullable(),
+  source_profile: zod
+    .object({
+      karma: zod.number().nullable(),
+      account_age_days: zod.number().nullable(),
+      bio: zod.string().nullable(),
+      website: zod.string().nullable(),
+      profile_url: zod.string().nullable(),
+    })
+    .nullable(),
+});
+
+/**
  * List all configured lead sources
  * @summary Get available sources
  */

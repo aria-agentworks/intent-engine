@@ -19,6 +19,7 @@ import type {
 import type {
   CreateKeywordInput,
   DeleteKeywordResult,
+  EnrichmentData,
   GeneratedResponse,
   GetLeadsParams,
   HealthStatus,
@@ -706,6 +707,94 @@ export const useGenerateResponse = <
 > => {
   return useMutation(getGenerateResponseMutationOptions(options));
 };
+
+/**
+ * Extract contact info from post text and fetch the author's public platform profile
+ * @summary Enrich a lead
+ */
+export const getEnrichLeadUrl = (id: string) => {
+  return `/api/leads/${id}/enrich`;
+};
+
+export const enrichLead = async (
+  id: string,
+  options?: RequestInit,
+): Promise<EnrichmentData> => {
+  return customFetch<EnrichmentData>(getEnrichLeadUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getEnrichLeadQueryKey = (id: string) => {
+  return [`/api/leads/${id}/enrich`] as const;
+};
+
+export const getEnrichLeadQueryOptions = <
+  TData = Awaited<ReturnType<typeof enrichLead>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof enrichLead>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getEnrichLeadQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof enrichLead>>> = ({
+    signal,
+  }) => enrichLead(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof enrichLead>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type EnrichLeadQueryResult = NonNullable<
+  Awaited<ReturnType<typeof enrichLead>>
+>;
+export type EnrichLeadQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Enrich a lead
+ */
+
+export function useEnrichLead<
+  TData = Awaited<ReturnType<typeof enrichLead>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof enrichLead>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getEnrichLeadQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * List all configured lead sources

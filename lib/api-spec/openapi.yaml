@@ -177,6 +177,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/GeneratedResponse"
 
+  /leads/{id}/enrich:
+    get:
+      operationId: enrichLead
+      tags: [leads]
+      summary: Enrich a lead
+      description: Extract contact info from post text and fetch the author's public platform profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Enrichment data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrichmentData"
+
   /sources:
     get:
       operationId: getSources
@@ -616,3 +636,59 @@ components:
       required:
         - deleted
         - id
+
+    SourceProfile:
+      type: object
+      properties:
+        karma:
+          type: integer
+          nullable: true
+        account_age_days:
+          type: integer
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        profile_url:
+          type: string
+          nullable: true
+      required:
+        - karma
+        - account_age_days
+        - bio
+        - website
+        - profile_url
+
+    EnrichmentData:
+      type: object
+      properties:
+        lead_id:
+          type: string
+        emails:
+          type: array
+          items:
+            type: string
+        phones:
+          type: array
+          items:
+            type: string
+        urls:
+          type: array
+          items:
+            type: string
+        company:
+          type: string
+          nullable: true
+        source_profile:
+          $ref: "#/components/schemas/SourceProfile"
+          nullable: true
+      required:
+        - lead_id
+        - emails
+        - phones
+        - urls
+        - company
+        - source_profile

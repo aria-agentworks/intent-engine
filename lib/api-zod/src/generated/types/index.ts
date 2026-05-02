@@ -8,6 +8,7 @@
 
 export * from "./createKeywordInput";
 export * from "./deleteKeywordResult";
+export * from "./enrichmentData";
 export * from "./generatedResponse";
 export * from "./getLeadsParams";
 export * from "./healthStatus";
@@ -21,6 +22,7 @@ export * from "./replyVariant";
 export * from "./saveLeadResult";
 export * from "./sourceCount";
 export * from "./sourceInfo";
+export * from "./sourceProfile";
 export * from "./sourcesResponse";
 export * from "./testPhraseInput";
 export * from "./testPhraseResult";

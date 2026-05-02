@@ -30,6 +30,8 @@ export const voiceCalls = pgTable("voice_calls", {
   durationSeconds: integer("duration_seconds"),
   outcome: text("outcome"),
   summary: text("summary"),
+  recordingSid: text("recording_sid"),
+  recordingUrl: text("recording_url"),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

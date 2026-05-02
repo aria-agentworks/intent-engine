@@ -173,6 +173,43 @@ async function executeToolCall(
   }
 }
 
+async function startCallRecording(
+  callSid: string,
+  baseUrl: string,
+  config: { twilioAccountSid?: string | null; twilioAuthToken?: string | null },
+  logger: { error: (obj: object, msg: string) => void }
+) {
+  if (!config.twilioAccountSid || !config.twilioAuthToken) return;
+  try {
+    const twilio = (await import("twilio")).default;
+    const client = twilio(config.twilioAccountSid, config.twilioAuthToken);
+    await client.calls(callSid).recordings.create({
+      recordingStatusCallback: `${baseUrl}/api/voice/recording-status`,
+      recordingStatusCallbackMethod: "POST",
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to start call recording");
+  }
+}
+
+router.post("/voice/recording-status", async (req, res) => {
+  const { CallSid, RecordingSid, RecordingUrl, RecordingStatus } = req.body as Record<string, string>;
+  res.sendStatus(204);
+  if (RecordingStatus !== "completed" || !RecordingUrl) return;
+  try {
+    const call = await db.query.voiceCalls.findFirst({ where: eq(voiceCalls.callSid, CallSid) });
+    if (!call) return;
+    // Store recording URL with .mp3 extension for direct playback
+    const mp3Url = RecordingUrl.endsWith(".mp3") ? RecordingUrl : `${RecordingUrl}.mp3`;
+    await db
+      .update(voiceCalls)
+      .set({ recordingSid: RecordingSid, recordingUrl: mp3Url })
+      .where(eq(voiceCalls.id, call.id));
+  } catch (err) {
+    // non-fatal
+  }
+});
+
 router.post("/voice/inbound", async (req, res) => {
   const { CallSid, From, To } = req.body as Record<string, string>;
   res.setHeader("Content-Type", "text/xml");
@@ -199,6 +236,9 @@ router.post("/voice/inbound", async (req, res) => {
         status: "in-progress",
       });
     }
+
+    // Start recording async — don't block TwiML response
+    void startCallRecording(CallSid, getBaseUrl(req), config, req.log);
 
     if (config.hoursJson && !isWithinBusinessHours(config.hoursJson, config.timezone)) {
       const hoursSummary = getBusinessHoursSummary(config.hoursJson);

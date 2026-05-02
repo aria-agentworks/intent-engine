@@ -316,6 +316,9 @@ router.post("/voice/outbound", async (req, res) => {
       statusCallback: `${baseUrl}/api/voice/status`,
       statusCallbackEvent: ["completed", "failed", "busy", "no-answer"],
       statusCallbackMethod: "POST",
+      record: true,
+      recordingStatusCallback: `${baseUrl}/api/voice/recording-status`,
+      recordingStatusCallbackMethod: "POST",
     });
 
     await db.insert(voiceCalls).values({
@@ -334,6 +337,53 @@ router.post("/voice/outbound", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Error creating outbound call");
     return res.status(500).json({ error: "Failed to initiate call. Check your Twilio credentials." });
+  }
+});
+
+// ── Audio proxy — streams Twilio recording to browser without exposing credentials ──
+router.get("/voice/calls/:id/recording", async (req, res) => {
+  try {
+    const call = await db.query.voiceCalls.findFirst({
+      where: eq(voiceCalls.id, req.params.id),
+    });
+    if (!call?.recordingUrl) return res.status(404).json({ error: "No recording available" });
+
+    const config = await db.query.voiceConfigs.findFirst();
+    if (!config?.twilioAccountSid || !config?.twilioAuthToken) {
+      return res.status(503).json({ error: "Twilio credentials not configured" });
+    }
+
+    // Fetch audio from Twilio with Basic Auth
+    const auth = Buffer.from(`${config.twilioAccountSid}:${config.twilioAuthToken}`).toString("base64");
+    const upstream = await fetch(call.recordingUrl, {
+      headers: { Authorization: `Basic ${auth}` },
+    });
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: "Recording fetch failed" });
+    }
+
+    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "audio/mpeg");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    const contentLength = upstream.headers.get("content-length");
+    if (contentLength) res.setHeader("Content-Length", contentLength);
+
+    const reader = upstream.body?.getReader();
+    if (!reader) return res.status(500).send("Stream unavailable");
+
+    const pump = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { res.end(); break; }
+        if (!res.write(Buffer.from(value))) {
+          await new Promise((r) => res.once("drain", r));
+        }
+      }
+    };
+    await pump();
+  } catch (err) {
+    req.log.error({ err }, "Error proxying recording");
+    if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
   }
 });
 

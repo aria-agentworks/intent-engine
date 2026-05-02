@@ -177,6 +177,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/GeneratedResponse"
 
+  /leads/{id}/score-breakdown:
+    get:
+      operationId: getLeadScoreBreakdown
+      tags: [leads]
+      summary: Keyword scoring breakdown for a lead
+      description: Returns all matched keywords, their individual scores, and which keyword set the final intent score
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Score breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreBreakdown"
+
   /leads/{id}/analyze:
     post:
       operationId: analyzeLead
@@ -656,6 +676,48 @@ components:
       required:
         - deleted
         - id
+
+    MatchedKeyword:
+      type: object
+      properties:
+        phrase:
+          type: string
+        score:
+          type: integer
+        is_primary:
+          type: boolean
+          description: True if this keyword set the final intent score (highest-scoring match)
+      required:
+        - phrase
+        - score
+        - is_primary
+
+    ScoreBreakdown:
+      type: object
+      properties:
+        lead_id:
+          type: string
+        final_score:
+          type: integer
+        matched:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchedKeyword"
+        unmatched_count:
+          type: integer
+          description: Number of active keywords that did NOT match this post
+        total_keywords:
+          type: integer
+        fallback:
+          type: boolean
+          description: True if no keywords matched and the default score of 3 was used
+      required:
+        - lead_id
+        - final_score
+        - matched
+        - unmatched_count
+        - total_keywords
+        - fallback
 
     LeadAnalysis:
       type: object

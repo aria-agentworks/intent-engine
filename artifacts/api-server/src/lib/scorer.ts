@@ -43,6 +43,44 @@ export async function scoreAsync(text: string): Promise<number> {
   return 3;
 }
 
+export interface MatchedKeyword {
+  phrase: string;
+  score: number;
+  is_primary: boolean;
+}
+
+export async function scoreBreakdown(text: string): Promise<{
+  final_score: number;
+  matched: MatchedKeyword[];
+  unmatched_count: number;
+  total_keywords: number;
+  fallback: boolean;
+}> {
+  const keywords = await getActiveKeywords();
+  const t = text.toLowerCase();
+
+  const matched: MatchedKeyword[] = [];
+  let primaryFound = false;
+
+  for (const kw of keywords) {
+    if (t.includes(kw.phrase)) {
+      matched.push({ phrase: kw.phrase, score: kw.score, is_primary: !primaryFound });
+      primaryFound = true;
+    }
+  }
+
+  const final_score = matched.length > 0 ? matched[0].score : 3;
+  const unmatched_count = keywords.length - matched.length;
+
+  return {
+    final_score,
+    matched,
+    unmatched_count,
+    total_keywords: keywords.length,
+    fallback: matched.length === 0,
+  };
+}
+
 // Sync fallback for callers that can't await (used during cold start)
 export function score(text: string): number {
   const t = text.toLowerCase();

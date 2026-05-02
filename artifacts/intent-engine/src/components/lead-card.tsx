@@ -3,13 +3,14 @@ import { format } from "date-fns";
 import {
   Bookmark, BookmarkCheck, ExternalLink, Bot, Copy, Check,
   Square, CheckSquare, Sparkles, Mail, Phone, Globe, Building2,
-  User, Star, Brain, ChevronDown, ChevronUp, Send, AlertTriangle, Zap, Target
+  User, Star, Brain, ChevronDown, ChevronUp, Send, AlertTriangle, Zap, Target,
+  BarChart2, Hash
 } from "lucide-react";
 import { SiReddit, SiX, SiGithub, SiHackerone, SiYcombinator } from "react-icons/si";
 import { Lead, ReplyVariant } from "@workspace/api-client-react/src/generated/api.schemas";
 import {
   useSaveLead, getGetSavedLeadsQueryKey, getGetLeadsQueryKey,
-  useGenerateResponse, useEnrichLead, useAnalyzeLead,
+  useGenerateResponse, useEnrichLead, useAnalyzeLead, useGetLeadScoreBreakdown,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [enrichOpen, setEnrichOpen] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const isHigh = lead.intent_score >= 8;
   const isMedium = lead.intent_score >= 5 && lead.intent_score < 8;
@@ -65,6 +67,9 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
   const { data: analysisData, isFetching: analyzeLoading, refetch: fetchAnalysis, isSuccess: analyzed } =
     useAnalyzeLead(lead.id, { query: { enabled: false } });
 
+  const { data: breakdownData, isFetching: breakdownLoading, refetch: fetchBreakdown, isSuccess: brokenDown } =
+    useGetLeadScoreBreakdown(lead.id, { query: { enabled: false } });
+
   const handleEnrich = async () => {
     if (enriched) { setEnrichOpen(o => !o); return; }
     const result = await fetchEnrich();
@@ -75,6 +80,12 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
     if (analyzed) { setAnalysisOpen(o => !o); return; }
     const result = await fetchAnalysis();
     if (result.data) setAnalysisOpen(true);
+  };
+
+  const handleBreakdown = async () => {
+    if (brokenDown) { setBreakdownOpen(o => !o); return; }
+    const result = await fetchBreakdown();
+    if (result.data) setBreakdownOpen(true);
   };
 
   const handleCopy = async (text: string, index: number) => {
@@ -229,6 +240,15 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
                     <><Brain className="h-3 w-3 mr-2" />{analyzed ? (analysisOpen ? "HIDE_BRAIN" : "SHOW_BRAIN") : "ANALYZE"}</>
                   )}
                 </Button>
+                <Button
+                  variant="outline" size="sm"
+                  className={cn("h-8 text-xs font-mono", brokenDown && "border-cyan-500/40 text-cyan-400 hover:border-cyan-500/70")}
+                  onClick={handleBreakdown} disabled={breakdownLoading}
+                >
+                  {breakdownLoading ? <span className="animate-pulse">LOADING...</span> : (
+                    <><BarChart2 className="h-3 w-3 mr-2" />{brokenDown ? (breakdownOpen ? "HIDE_SCORE" : "SCORE_WHY") : "SCORE_WHY"}</>
+                  )}
+                </Button>
               </div>
               <div className="flex items-center gap-2">
                 {mailtoHref && (
@@ -245,6 +265,54 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
                 )}
               </div>
             </div>
+
+            {/* score breakdown panel */}
+            {breakdownOpen && breakdownData && (
+              <div className="border border-cyan-500/20 rounded-md bg-cyan-950/10 overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cyan-500/15 bg-cyan-500/5">
+                  <BarChart2 className="h-3 w-3 text-cyan-400" />
+                  <span className="text-[10px] font-mono font-bold text-cyan-400 tracking-wider">SCORE_BREAKDOWN</span>
+                  <div className="ml-auto flex items-center gap-3">
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {breakdownData.matched.length}/{breakdownData.total_keywords} keywords matched
+                    </span>
+                    {breakdownData.fallback && (
+                      <span className="text-[10px] font-mono text-amber-500/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                        DEFAULT SCORE
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  {breakdownData.fallback ? (
+                    <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500/60 mt-0.5 shrink-0" />
+                      <p>No keywords matched this post. The score of <span className="text-foreground font-mono">3</span> is the default fallback. Add more keywords in the Keywords page to capture signals like this.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-[10px] font-mono text-muted-foreground/60 tracking-widest mb-1">MATCHED KEYWORDS</div>
+                      <div className="space-y-2">
+                        {breakdownData.matched.map((kw, i) => (
+                          <ScoreBar
+                            key={i}
+                            phrase={kw.phrase}
+                            score={kw.score}
+                            isPrimary={kw.is_primary}
+                          />
+                        ))}
+                      </div>
+                      {breakdownData.unmatched_count > 0 && (
+                        <p className="text-[10px] font-mono text-muted-foreground/50 pt-1">
+                          + {breakdownData.unmatched_count} other keyword{breakdownData.unmatched_count !== 1 ? "s" : ""} active but not matched in this post
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* AI analysis panel */}
             {analysisOpen && analysisData && (
@@ -405,6 +473,46 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface ScoreBarProps {
+  phrase: string;
+  score: number;
+  isPrimary: boolean;
+}
+
+function ScoreBar({ phrase, score, isPrimary }: ScoreBarProps) {
+  const pct = Math.round((score / 10) * 100);
+  const barColor = score >= 8 ? "bg-primary" : score >= 5 ? "bg-amber-500" : "bg-muted-foreground/40";
+  return (
+    <div className={cn(
+      "rounded px-3 py-2 border",
+      isPrimary ? "border-cyan-500/30 bg-cyan-500/5" : "border-border/40 bg-muted/10"
+    )}>
+      <div className="flex items-center justify-between mb-1.5 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Hash className="h-2.5 w-2.5 text-cyan-400/60 shrink-0" />
+          <span className="text-xs font-mono text-foreground/90 truncate">{phrase}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {isPrimary && (
+            <span className="text-[9px] font-mono text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-1.5 py-0.5 rounded tracking-wider">
+              WINNER
+            </span>
+          )}
+          <span className={cn(
+            "text-xs font-mono font-bold",
+            score >= 8 ? "text-primary" : score >= 5 ? "text-amber-500" : "text-muted-foreground"
+          )}>
+            {score}/10
+          </span>
+        </div>
+      </div>
+      <div className="h-1 rounded-full bg-muted/40 overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

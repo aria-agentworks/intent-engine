@@ -171,6 +171,39 @@ export const GenerateResponseResponse = zod.object({
 });
 
 /**
+ * Returns all matched keywords, their individual scores, and which keyword set the final intent score
+ * @summary Keyword scoring breakdown for a lead
+ */
+export const GetLeadScoreBreakdownParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetLeadScoreBreakdownResponse = zod.object({
+  lead_id: zod.string(),
+  final_score: zod.number(),
+  matched: zod.array(
+    zod.object({
+      phrase: zod.string(),
+      score: zod.number(),
+      is_primary: zod
+        .boolean()
+        .describe(
+          "True if this keyword set the final intent score (highest-scoring match)",
+        ),
+    }),
+  ),
+  unmatched_count: zod
+    .number()
+    .describe("Number of active keywords that did NOT match this post"),
+  total_keywords: zod.number(),
+  fallback: zod
+    .boolean()
+    .describe(
+      "True if no keywords matched and the default score of 3 was used",
+    ),
+});
+
+/**
  * Use AI to analyze the lead's intent, pain level, and recommend the optimal outreach strategy
  * @summary AI analysis of a lead
  */

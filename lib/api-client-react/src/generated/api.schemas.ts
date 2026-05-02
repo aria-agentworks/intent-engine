@@ -135,6 +135,24 @@ export interface DeleteKeywordResult {
   id: string;
 }
 
+export interface MatchedKeyword {
+  phrase: string;
+  score: number;
+  /** True if this keyword set the final intent score (highest-scoring match) */
+  is_primary: boolean;
+}
+
+export interface ScoreBreakdown {
+  lead_id: string;
+  final_score: number;
+  matched: MatchedKeyword[];
+  /** Number of active keywords that did NOT match this post */
+  unmatched_count: number;
+  total_keywords: number;
+  /** True if no keywords matched and the default score of 3 was used */
+  fallback: boolean;
+}
+
 export type LeadAnalysisPainLevel =
   (typeof LeadAnalysisPainLevel)[keyof typeof LeadAnalysisPainLevel];
 

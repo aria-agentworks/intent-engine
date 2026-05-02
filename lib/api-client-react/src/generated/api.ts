@@ -29,6 +29,7 @@ import type {
   LeadsResponse,
   LeadsStats,
   SaveLeadResult,
+  ScoreBreakdown,
   SourcesResponse,
   TestPhraseInput,
   TestPhraseResult,
@@ -708,6 +709,95 @@ export const useGenerateResponse = <
 > => {
   return useMutation(getGenerateResponseMutationOptions(options));
 };
+
+/**
+ * Returns all matched keywords, their individual scores, and which keyword set the final intent score
+ * @summary Keyword scoring breakdown for a lead
+ */
+export const getGetLeadScoreBreakdownUrl = (id: string) => {
+  return `/api/leads/${id}/score-breakdown`;
+};
+
+export const getLeadScoreBreakdown = async (
+  id: string,
+  options?: RequestInit,
+): Promise<ScoreBreakdown> => {
+  return customFetch<ScoreBreakdown>(getGetLeadScoreBreakdownUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLeadScoreBreakdownQueryKey = (id: string) => {
+  return [`/api/leads/${id}/score-breakdown`] as const;
+};
+
+export const getGetLeadScoreBreakdownQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLeadScoreBreakdown>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLeadScoreBreakdown>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetLeadScoreBreakdownQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getLeadScoreBreakdown>>
+  > = ({ signal }) => getLeadScoreBreakdown(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLeadScoreBreakdown>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLeadScoreBreakdownQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLeadScoreBreakdown>>
+>;
+export type GetLeadScoreBreakdownQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Keyword scoring breakdown for a lead
+ */
+
+export function useGetLeadScoreBreakdown<
+  TData = Awaited<ReturnType<typeof getLeadScoreBreakdown>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLeadScoreBreakdown>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLeadScoreBreakdownQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Use AI to analyze the lead's intent, pain level, and recommend the optimal outreach strategy

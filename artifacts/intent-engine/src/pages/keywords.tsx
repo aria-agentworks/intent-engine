@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { 
   useGetKeywords, 
@@ -6,10 +6,11 @@ import {
   useUpdateKeyword, 
   useDeleteKeyword, 
   useResetKeywords, 
-  getGetKeywordsQueryKey 
+  getGetKeywordsQueryKey,
+  useTestPhrase
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings2, Trash2, Plus, RotateCcw, Check, X } from "lucide-react";
+import { Trash2, Plus, RotateCcw, Check, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ export default function KeywordsPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [testPhrase, setTestPhrase] = useState("");
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -46,6 +48,20 @@ export default function KeywordsPage() {
   const updateKeyword = useUpdateKeyword();
   const deleteKeyword = useDeleteKeyword();
   const resetKeywords = useResetKeywords();
+  const testPhraseMutation = useTestPhrase();
+
+  useEffect(() => {
+    if (!testPhrase.trim()) {
+      testPhraseMutation.reset();
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      testPhraseMutation.mutate({ data: { phrase: testPhrase } });
+    }, 600);
+    
+    return () => clearTimeout(timer);
+  }, [testPhrase]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -207,6 +223,76 @@ export default function KeywordsPage() {
               {isAdding ? "CANCEL" : "ADD_KEYWORD"}
             </Button>
           </div>
+        </div>
+
+        <div className="border border-border bg-card p-4 rounded-md">
+          <h2 className="text-sm font-bold font-mono mb-3">TEST_PHRASE</h2>
+          <Input
+            placeholder="Paste any lead text to score it..."
+            className="font-mono text-sm"
+            data-testid="input-test-phrase"
+            value={testPhrase}
+            onChange={(e) => setTestPhrase(e.target.value)}
+          />
+          
+          {testPhraseMutation.isPending && (
+            <div className="mt-4 space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          )}
+          
+          {!testPhraseMutation.isPending && testPhraseMutation.data && testPhrase.trim() !== "" && (
+            <div className="mt-4 p-4 bg-muted/30 rounded-md border border-border">
+              <div className="flex items-center gap-4 mb-4">
+                <div className={cn(
+                  "text-3xl font-mono font-bold",
+                  testPhraseMutation.data.score >= 8 ? "text-primary" : 
+                  testPhraseMutation.data.score >= 5 ? "text-[#f59e0b]" : 
+                  "text-muted-foreground"
+                )}>
+                  {testPhraseMutation.data.score}/10
+                </div>
+                <Badge 
+                  variant="outline"
+                  className={cn(
+                    "font-mono",
+                    testPhraseMutation.data.score >= 8 ? "text-primary border-primary/30 bg-primary/10" : 
+                    testPhraseMutation.data.score >= 5 ? "text-[#f59e0b] border-[#f59e0b]/30 bg-[#f59e0b]/10" : 
+                    "text-muted-foreground border-muted-foreground/30 bg-muted/50"
+                  )}
+                >
+                  {testPhraseMutation.data.intent_label}
+                </Badge>
+              </div>
+              
+              <div className="text-sm font-mono mb-2">
+                <span className="text-muted-foreground mr-2">MATCHED:</span>
+                {testPhraseMutation.data.matched_keyword ? (
+                  <span>
+                    <span className="bg-muted px-1.5 py-0.5 rounded font-bold">"{testPhraseMutation.data.matched_keyword}"</span>
+                    <span className="mx-2">→</span>
+                    <Badge variant="outline" className="font-mono text-xs">SCORE: {testPhraseMutation.data.score}</Badge>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground italic">NO_KEYWORD_MATCHED — default score applied</span>
+                )}
+              </div>
+              
+              {testPhraseMutation.data.all_matches && testPhraseMutation.data.all_matches.length > 1 && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="text-xs font-mono text-muted-foreground mb-2">ALL MATCHES:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {testPhraseMutation.data.all_matches.map((match) => (
+                      <Badge key={match.id} variant="secondary" className="font-mono text-xs font-normal">
+                        "{match.phrase}" <span className="text-muted-foreground ml-1">({match.score})</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="border border-border bg-card rounded-md overflow-hidden">

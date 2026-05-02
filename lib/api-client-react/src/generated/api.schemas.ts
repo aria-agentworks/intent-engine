@@ -86,6 +86,25 @@ export interface UpdateKeywordInput {
   enabled?: boolean;
 }
 
+export interface TestPhraseInput {
+  phrase: string;
+}
+
+export interface KeywordMatch {
+  id: string;
+  phrase: string;
+  score: number;
+}
+
+export interface TestPhraseResult {
+  phrase: string;
+  score: number;
+  intent_label: string;
+  matched_keyword?: string | null;
+  matched_keyword_id?: string | null;
+  all_matches?: KeywordMatch[];
+}
+
 export interface DeleteKeywordResult {
   deleted: boolean;
   id: string;

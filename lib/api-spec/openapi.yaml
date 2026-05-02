@@ -192,6 +192,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/KeywordsResponse"
 
+  /keywords/test:
+    post:
+      operationId: testPhrase
+      tags: [keywords]
+      summary: Test a phrase against keywords
+      description: Run a phrase through the scorer and return which keyword matched and the resulting score
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestPhraseInput"
+      responses:
+        "200":
+          description: Scoring result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestPhraseResult"
+
   /keywords/{id}:
     patch:
       operationId: updateKeyword
@@ -433,6 +453,52 @@ components:
           type: string
         enabled:
           type: boolean
+
+    TestPhraseInput:
+      type: object
+      properties:
+        phrase:
+          type: string
+      required:
+        - phrase
+
+    TestPhraseResult:
+      type: object
+      properties:
+        phrase:
+          type: string
+        score:
+          type: integer
+        intent_label:
+          type: string
+        matched_keyword:
+          type: string
+          nullable: true
+        matched_keyword_id:
+          type: string
+          nullable: true
+        all_matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/KeywordMatch"
+      required:
+        - phrase
+        - score
+        - intent_label
+
+    KeywordMatch:
+      type: object
+      properties:
+        id:
+          type: string
+        phrase:
+          type: string
+        score:
+          type: integer
+      required:
+        - id
+        - phrase
+        - score
 
     DeleteKeywordResult:
       type: object

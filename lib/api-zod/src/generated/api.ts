@@ -173,6 +173,31 @@ export const ResetKeywordsResponse = zod.object({
 });
 
 /**
+ * Run a phrase through the scorer and return which keyword matched and the resulting score
+ * @summary Test a phrase against keywords
+ */
+export const TestPhraseBody = zod.object({
+  phrase: zod.string(),
+});
+
+export const TestPhraseResponse = zod.object({
+  phrase: zod.string(),
+  score: zod.number(),
+  intent_label: zod.string(),
+  matched_keyword: zod.string().nullish(),
+  matched_keyword_id: zod.string().nullish(),
+  all_matches: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        phrase: zod.string(),
+        score: zod.number(),
+      }),
+    )
+    .optional(),
+});
+
+/**
  * Update a keyword's phrase, score, or enabled state
  * @summary Update a keyword
  */

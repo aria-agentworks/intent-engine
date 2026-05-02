@@ -28,6 +28,8 @@ import type {
   LeadsStats,
   SaveLeadResult,
   SourcesResponse,
+  TestPhraseInput,
+  TestPhraseResult,
   UpdateKeywordInput,
 } from "./api.schemas";
 
@@ -852,6 +854,93 @@ export const useResetKeywords = <
   TContext
 > => {
   return useMutation(getResetKeywordsMutationOptions(options));
+};
+
+/**
+ * Run a phrase through the scorer and return which keyword matched and the resulting score
+ * @summary Test a phrase against keywords
+ */
+export const getTestPhraseUrl = () => {
+  return `/api/keywords/test`;
+};
+
+export const testPhrase = async (
+  testPhraseInput: TestPhraseInput,
+  options?: RequestInit,
+): Promise<TestPhraseResult> => {
+  return customFetch<TestPhraseResult>(getTestPhraseUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(testPhraseInput),
+  });
+};
+
+export const getTestPhraseMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testPhrase>>,
+    TError,
+    { data: BodyType<TestPhraseInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testPhrase>>,
+  TError,
+  { data: BodyType<TestPhraseInput> },
+  TContext
+> => {
+  const mutationKey = ["testPhrase"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testPhrase>>,
+    { data: BodyType<TestPhraseInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return testPhrase(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestPhraseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testPhrase>>
+>;
+export type TestPhraseMutationBody = BodyType<TestPhraseInput>;
+export type TestPhraseMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Test a phrase against keywords
+ */
+export const useTestPhrase = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testPhrase>>,
+    TError,
+    { data: BodyType<TestPhraseInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof testPhrase>>,
+  TError,
+  { data: BodyType<TestPhraseInput> },
+  TContext
+> => {
+  return useMutation(getTestPhraseMutationOptions(options));
 };
 
 /**

@@ -3,9 +3,11 @@ import { Layout } from "@/components/layout";
 import { LeadCard } from "@/components/lead-card";
 import { useGetLeads, useGetSources } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Filter, SlidersHorizontal } from "lucide-react";
+import { Search, Filter, SlidersHorizontal, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { downloadLeadsCsv } from "@/lib/csv";
 
 export default function LeadsExplorer() {
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
@@ -77,9 +79,21 @@ export default function LeadsExplorer() {
             </div>
           </div>
           
-          <div className="flex items-center ml-auto font-mono text-xs text-muted-foreground bg-muted px-3 py-1 rounded mt-4 sm:mt-0">
-            <SlidersHorizontal className="h-3 w-3 mr-2" />
-            {filteredLeads?.length || 0} MATCHES
+          <div className="flex items-center gap-2 ml-auto mt-4 sm:mt-0">
+            <div className="flex items-center font-mono text-xs text-muted-foreground bg-muted px-3 py-1 rounded">
+              <SlidersHorizontal className="h-3 w-3 mr-2" />
+              {filteredLeads?.length || 0} MATCHES
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs font-mono"
+              disabled={!filteredLeads || filteredLeads.length === 0}
+              onClick={() => downloadLeadsCsv(filteredLeads!, `leads_${new Date().toISOString().slice(0,10)}.csv`)}
+            >
+              <Download className="h-3 w-3 mr-1.5" />
+              EXPORT_CSV
+            </Button>
           </div>
         </div>
 

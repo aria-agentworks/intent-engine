@@ -2,11 +2,13 @@ import { Layout } from "@/components/layout";
 import { LeadCard } from "@/components/lead-card";
 import { useGetSavedLeads, useUpdateLeadStatus, getGetSavedLeadsQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookmarkX } from "lucide-react";
+import { BookmarkX, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { downloadLeadsCsv } from "@/lib/csv";
 
 export default function SavedLeads() {
   const { data: leadsData, isLoading } = useGetSavedLeads();
@@ -44,9 +46,22 @@ export default function SavedLeads() {
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">SAVED_SIGNALS</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Bookmarked leads pending outreach or analysis.</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">SAVED_SIGNALS</h1>
+            <p className="text-muted-foreground mt-1 text-sm">Bookmarked leads pending outreach or analysis.</p>
+          </div>
+          {leadsData?.leads && leadsData.leads.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-mono mt-1"
+              onClick={() => downloadLeadsCsv(leadsData.leads, `saved_leads_${new Date().toISOString().slice(0,10)}.csv`, true)}
+            >
+              <Download className="h-3 w-3 mr-1.5" />
+              EXPORT_CSV
+            </Button>
+          )}
         </div>
 
         <div className="space-y-4">

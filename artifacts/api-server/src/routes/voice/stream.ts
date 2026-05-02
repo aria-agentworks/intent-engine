@@ -22,6 +22,24 @@ const TWILIO_SAMPLE_RATE = 8000;
 // Chunk size for sending audio back: 20ms at 8kHz = 160 samples
 const SEND_CHUNK_BYTES = 160;
 
+// ── Live session registry (for supervisor monitor) ───────────────────────────
+
+export interface LiveSessionMeta {
+  callSid: string;
+  callDbId: string | null;
+  fromNumber: string;
+  toNumber: string;
+  direction: string;
+  startedAt: string;
+  businessName: string;
+}
+
+const liveSessionMap = new Map<string, LiveSessionMeta>();
+
+export function getActiveSessions(): LiveSessionMeta[] {
+  return Array.from(liveSessionMap.values());
+}
+
 type Config = typeof voiceConfigs.$inferSelect;
 
 interface Session {
@@ -366,6 +384,30 @@ export function createMediaStreamWss(): WebSocketServer {
           initSession(startData.callSid, startData.streamSid, startData.customParameters ?? {})
             .then(async (s) => {
               session = s;
+
+              // Register in live session map + emit call_start for supervisor
+              const fromNum = startData.customParameters?.["From"] ?? "";
+              const toNum = startData.customParameters?.["To"] ?? "";
+              const sessionStartedAt = new Date().toISOString();
+              liveSessionMap.set(startData.callSid, {
+                callSid: startData.callSid,
+                callDbId: s.callDbId,
+                fromNumber: fromNum,
+                toNumber: toNum,
+                direction: "inbound",
+                startedAt: sessionStartedAt,
+                businessName: s.config?.businessName ?? "",
+              });
+              supervisorEvents.emit("event", {
+                type: "call_start",
+                callId: s.callDbId ?? startData.callSid,
+                callSid: startData.callSid,
+                fromNumber: fromNum,
+                toNumber: toNum,
+                direction: "inbound",
+                timestamp: sessionStartedAt,
+              });
+
               // Play the configured greeting as TTS
               if (s.config) {
                 const greetingText = s.config.greeting
@@ -402,6 +444,7 @@ export function createMediaStreamWss(): WebSocketServer {
         case "stop":
           log.info("stream: Media Stream stop");
           if (session) {
+            liveSessionMap.delete(session.callSid);
             finalizeCall(session).catch((err) => log.error({ err }, "stream: finalizeCall error"));
           }
           session = null;
@@ -416,6 +459,7 @@ export function createMediaStreamWss(): WebSocketServer {
 
     ws.on("close", () => {
       if (session) {
+        liveSessionMap.delete(session.callSid);
         finalizeCall(session).catch(() => {});
         session = null;
       }

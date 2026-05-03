@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import {
-  Bookmark, BookmarkCheck, ExternalLink, Bot, Copy, Check,
-  Square, CheckSquare, Sparkles, Mail, Phone, Globe, Building2,
-  User, Star, Brain, ChevronDown, ChevronUp, Send, AlertTriangle, Zap, Target,
-  BarChart2, Hash
+  Bookmark, BookmarkCheck, ExternalLink, Bot, Copy, Check, Square, CheckSquare, Sparkles, Mail, Phone, Globe, Building2,
+  User, Star, Brain, Send, AlertTriangle, Zap, Target, BarChart2
 } from "lucide-react";
 import { SiReddit, SiX, SiGithub, SiHackerone, SiYcombinator } from "react-icons/si";
 import { Lead, ReplyVariant } from "@workspace/api-client-react/src/generated/api.schemas";
@@ -49,6 +47,8 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
   const { toast } = useToast();
   const saveLead = useSaveLead();
   const generateResponse = useGenerateResponse();
+  const [nurtureLoading, setNurtureLoading] = useState(false);
+  const [nurtureSequence, setNurtureSequence] = useState<{ subject: string; emails: { step: number; subject: string; message: string }[] } | null>(null);
 
   const [variants, setVariants] = useState<ReplyVariant[] | null>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -62,13 +62,13 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
   const selectMode = onSelect !== undefined;
 
   const { data: enrichData, isFetching: enrichLoading, refetch: fetchEnrich, isSuccess: enriched } =
-    useEnrichLead(lead.id, { query: { enabled: false } });
+    useEnrichLead(lead.id, { query: { enabled: false } as any });
 
   const { data: analysisData, isFetching: analyzeLoading, refetch: fetchAnalysis, isSuccess: analyzed } =
-    useAnalyzeLead(lead.id, { query: { enabled: false } });
+    useAnalyzeLead(lead.id, { query: { enabled: false } as any }) as any;
 
   const { data: breakdownData, isFetching: breakdownLoading, refetch: fetchBreakdown, isSuccess: brokenDown } =
-    useGetLeadScoreBreakdown(lead.id, { query: { enabled: false } });
+    useGetLeadScoreBreakdown(lead.id, { query: { enabled: false } as any });
 
   const handleEnrich = async () => {
     if (enriched) { setEnrichOpen(o => !o); return; }
@@ -115,6 +115,18 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
     });
   };
 
+  const handleNurture = async () => {
+    setNurtureLoading(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/nurture`);
+      const data = await res.json();
+      setNurtureSequence(data.sequence);
+      toast({ title: "Nurture sequence ready", description: "Generated a 3-step follow-up sequence." });
+    } finally {
+      setNurtureLoading(false);
+    }
+  };
+
   const SourceIcon = () => {
     const s = lead.source.toLowerCase();
     if (s.includes("reddit")) return <SiReddit className="text-[#FF4500] h-4 w-4" />;
@@ -131,7 +143,6 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
     enrichData.urls.length > 0 || enrichData.company || enrichData.source_profile
   );
 
-  // mailto deeplink: only available when we have both an email and a generated reply
   const emailTarget = enrichData?.emails?.[0];
   const mailtoHref = emailTarget && activeVariant
     ? `mailto:${emailTarget}?subject=${encodeURIComponent(`Re: your post`)}&body=${encodeURIComponent(activeVariant.message)}`
@@ -149,9 +160,7 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
       <div className="absolute top-0 left-0 w-1 h-full" style={{
         backgroundColor: isHigh ? "var(--chart-1)" : isMedium ? "var(--chart-2)" : "var(--chart-3)"
       }} />
-
       <div className="p-5 pl-6 flex flex-col gap-4">
-        {/* header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             {selectMode && (
@@ -205,14 +214,12 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
           </div>
         </div>
 
-        {/* post text */}
         <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap font-sans">
           "{lead.text}"
         </div>
 
         {!selectMode && (
           <>
-            {/* action row */}
             <div className="flex items-center justify-between mt-2 pt-4 border-t border-border/50 flex-wrap gap-2" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-2 flex-wrap">
                 {lead.url && (
@@ -249,226 +256,23 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
                     <><BarChart2 className="h-3 w-3 mr-2" />{brokenDown ? (breakdownOpen ? "HIDE_SCORE" : "SCORE_WHY") : "SCORE_WHY"}</>
                   )}
                 </Button>
+                <Button variant="outline" size="sm" className="h-8 text-xs font-mono border-fuchsia-500/40 text-fuchsia-400 hover:border-fuchsia-500/70" onClick={handleNurture} disabled={nurtureLoading}>{nurtureLoading ? "BUILDING_SEQUENCE..." : "NURTURE_SEQUENCE"}</Button>
               </div>
-              <div className="flex items-center gap-2">
-                {mailtoHref && (
-                  <Button size="sm" variant="outline" className="h-8 text-xs font-mono border-emerald-500/40 text-emerald-400 hover:border-emerald-500/70" asChild>
-                    <a href={mailtoHref}>
-                      <Send className="h-3 w-3 mr-2" />SEND_EMAIL
-                    </a>
-                  </Button>
-                )}
-                {!variants && (
-                  <Button variant="secondary" size="sm" className="h-8 text-xs font-mono" onClick={handleGenerateResponse} disabled={generateResponse.isPending}>
-                    {generateResponse.isPending ? <span className="animate-pulse">GENERATING...</span> : <><Bot className="h-3 w-3 mr-2" />GENERATE_REPLY</>}
-                  </Button>
-                )}
-              </div>
+              <div className="flex items-center gap-2">{mailtoHref && <Button size="sm" variant="outline" className="h-8 text-xs font-mono border-emerald-500/40 text-emerald-400 hover:border-emerald-500/70" asChild><a href={mailtoHref}><Send className="h-3 w-3 mr-2" />SEND_EMAIL</a></Button>} {!variants && <Button variant="secondary" size="sm" className="h-8 text-xs font-mono" onClick={handleGenerateResponse} disabled={generateResponse.isPending}>{generateResponse.isPending ? <span className="animate-pulse">GENERATING...</span> : <><Bot className="h-3 w-3 mr-2" />GENERATE_REPLY</>}</Button>}</div>
             </div>
 
-            {/* score breakdown panel */}
-            {breakdownOpen && breakdownData && (
-              <div className="border border-cyan-500/20 rounded-md bg-cyan-950/10 overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cyan-500/15 bg-cyan-500/5">
-                  <BarChart2 className="h-3 w-3 text-cyan-400" />
-                  <span className="text-[10px] font-mono font-bold text-cyan-400 tracking-wider">SCORE_BREAKDOWN</span>
-                  <div className="ml-auto flex items-center gap-3">
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      {breakdownData.matched.length}/{breakdownData.total_keywords} keywords matched
-                    </span>
-                    {breakdownData.fallback && (
-                      <span className="text-[10px] font-mono text-amber-500/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                        DEFAULT SCORE
-                      </span>
-                    )}
-                  </div>
+            {nurtureSequence && (
+              <div className="border border-fuchsia-500/20 rounded-md bg-fuchsia-950/10 p-4 space-y-3" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-mono font-bold tracking-wider text-fuchsia-400">NURTURE_SEQUENCE</div>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs font-mono text-muted-foreground" onClick={() => setNurtureSequence(null)}>CLOSE</Button>
                 </div>
-
-                <div className="p-4 space-y-3">
-                  {breakdownData.fallback ? (
-                    <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500/60 mt-0.5 shrink-0" />
-                      <p>No keywords matched this post. The score of <span className="text-foreground font-mono">3</span> is the default fallback. Add more keywords in the Keywords page to capture signals like this.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-[10px] font-mono text-muted-foreground/60 tracking-widest mb-1">MATCHED KEYWORDS</div>
-                      <div className="space-y-2">
-                        {breakdownData.matched.map((kw, i) => (
-                          <ScoreBar
-                            key={i}
-                            phrase={kw.phrase}
-                            score={kw.score}
-                            isPrimary={kw.is_primary}
-                          />
-                        ))}
-                      </div>
-                      {breakdownData.unmatched_count > 0 && (
-                        <p className="text-[10px] font-mono text-muted-foreground/50 pt-1">
-                          + {breakdownData.unmatched_count} other keyword{breakdownData.unmatched_count !== 1 ? "s" : ""} active but not matched in this post
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* AI analysis panel */}
-            {analysisOpen && analysisData && (
-              <div className="border border-violet-500/20 rounded-md bg-violet-950/10 overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-violet-500/15 bg-violet-500/5">
-                  <Brain className="h-3 w-3 text-violet-400" />
-                  <span className="text-[10px] font-mono font-bold text-violet-400 tracking-wider">OUTREACH_BRAIN</span>
-                  <div className="ml-auto flex items-center gap-2">
-                    <span className={cn("text-[10px] font-mono flex items-center gap-1", URGENCY_COLOR[analysisData.urgency])}>
-                      <Zap className="h-2.5 w-2.5" />
-                      {analysisData.urgency} URGENCY
-                    </span>
-                    <span className="text-[10px] font-mono text-muted-foreground">{analysisData.tech_level.replace("_", " ")}</span>
+                {nurtureSequence.emails.map((email) => (
+                  <div key={email.step} className="border border-border/60 rounded p-3 bg-background/40">
+                    <div className="text-[10px] font-mono text-muted-foreground mb-1">STEP {email.step} · {email.subject}</div>
+                    <p className="text-sm text-foreground/90 whitespace-pre-wrap">{email.message}</p>
                   </div>
-                </div>
-
-                <div className="p-4 space-y-4">
-                  {/* summary */}
-                  <div>
-                    <div className="text-[10px] font-mono text-muted-foreground/60 mb-1 tracking-widest">WHAT_THEY_NEED</div>
-                    <p className="text-sm text-foreground/90 leading-relaxed">{analysisData.summary}</p>
-                  </div>
-
-                  {/* recommended approach */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-muted/30 rounded px-3 py-2">
-                      <div className="text-[9px] font-mono text-muted-foreground/60 mb-1 tracking-widest">CHANNEL</div>
-                      <div className="text-xs font-mono text-foreground font-semibold">{CHANNEL_LABEL[analysisData.recommended_channel]}</div>
-                    </div>
-                    <div className="bg-muted/30 rounded px-3 py-2">
-                      <div className="text-[9px] font-mono text-muted-foreground/60 mb-1 tracking-widest">STYLE</div>
-                      <div className="text-xs font-mono text-violet-400 font-semibold">{analysisData.recommended_style}</div>
-                    </div>
-                  </div>
-
-                  {/* reasoning */}
-                  <div>
-                    <div className="text-[10px] font-mono text-muted-foreground/60 mb-1 tracking-widest">REASONING</div>
-                    <p className="text-xs text-foreground/80 leading-relaxed">{analysisData.reasoning}</p>
-                  </div>
-
-                  {/* opening hook + copy */}
-                  <div className="border border-violet-500/20 rounded px-3 py-2.5 bg-violet-500/5">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="text-[9px] font-mono text-violet-400/80 tracking-widest">OPENING_HOOK</div>
-                      <CopyButton text={analysisData.opening_hook} />
-                    </div>
-                    <p className="text-sm text-foreground/90 italic">"{analysisData.opening_hook}"</p>
-                  </div>
-
-                  {/* key angles */}
-                  <div>
-                    <div className="text-[10px] font-mono text-muted-foreground/60 mb-2 tracking-widest">KEY_ANGLES</div>
-                    <ul className="space-y-1.5">
-                      {analysisData.key_angles.map((angle, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
-                          <Target className="h-3 w-3 text-violet-400 mt-0.5 shrink-0" />
-                          {angle}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* avoid */}
-                  {analysisData.avoid.length > 0 && (
-                    <div>
-                      <div className="text-[10px] font-mono text-muted-foreground/60 mb-2 tracking-widest">AVOID</div>
-                      <ul className="space-y-1.5">
-                        {analysisData.avoid.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                            <AlertTriangle className="h-3 w-3 text-amber-500/60 mt-0.5 shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* enrichment panel */}
-            {enrichOpen && enrichData && (
-              <div className="border border-emerald-500/20 rounded-md bg-emerald-950/10 overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-emerald-500/15 bg-emerald-500/5">
-                  <Sparkles className="h-3 w-3 text-emerald-400" />
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 tracking-wider">LEAD_INTEL</span>
-                  {enrichData.source_profile && (
-                    <span className="ml-auto text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                      <Star className="h-2.5 w-2.5" />
-                      {enrichData.source_profile.karma?.toLocaleString()} karma
-                      {enrichData.source_profile.account_age_days !== null && (
-                        <> · {Math.floor(enrichData.source_profile.account_age_days / 365)}y account</>
-                      )}
-                    </span>
-                  )}
-                </div>
-                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {enrichData.company && <EnrichRow icon={<Building2 className="h-3 w-3" />} label="COMPANY" value={enrichData.company} />}
-                  {enrichData.emails.map((e, i) => <EnrichRow key={i} icon={<Mail className="h-3 w-3" />} label="EMAIL" value={e} copyable />)}
-                  {enrichData.phones.map((p, i) => <EnrichRow key={i} icon={<Phone className="h-3 w-3" />} label="PHONE" value={p} copyable />)}
-                  {enrichData.source_profile?.website && <EnrichRow icon={<Globe className="h-3 w-3" />} label="WEBSITE" value={enrichData.source_profile.website} href={enrichData.source_profile.website} />}
-                  {enrichData.urls.slice(0, 3).map((u, i) => {
-                    try {
-                      return <EnrichRow key={i} icon={<Globe className="h-3 w-3" />} label="URL" value={new URL(u).hostname.replace("www.", "")} href={u} />;
-                    } catch { return null; }
-                  })}
-                  {enrichData.source_profile?.profile_url && <EnrichRow icon={<User className="h-3 w-3" />} label="PROFILE" value={enrichData.source_profile.profile_url} href={enrichData.source_profile.profile_url} />}
-                </div>
-                {enrichData.source_profile?.bio && (
-                  <div className="px-4 pb-4">
-                    <div className="text-[10px] font-mono text-muted-foreground mb-1">BIO</div>
-                    <p className="text-xs text-foreground/80 leading-relaxed line-clamp-3">{enrichData.source_profile.bio}</p>
-                  </div>
-                )}
-                {!enrichData.company && enrichData.emails.length === 0 && enrichData.phones.length === 0 && !enrichData.source_profile?.website && (
-                  <p className="px-4 pb-4 text-xs text-muted-foreground font-mono">No contact info found in post or public profile.</p>
-                )}
-              </div>
-            )}
-
-            {/* variant reply tabs */}
-            {variants && variants.length > 0 && (
-              <div className="mt-1 border border-primary/20 rounded-md overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="flex border-b border-border/60 bg-muted/20">
-                  {variants.map((v, i) => (
-                    <button key={v.label} onClick={() => setActiveTab(i)} className={cn(
-                      "flex-1 px-3 py-2 text-[10px] font-mono font-bold tracking-wider transition-colors",
-                      activeTab === i ? "bg-primary/10 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                    )}>
-                      {v.label}
-                    </button>
-                  ))}
-                  <button onClick={() => setVariants(null)} className="px-3 py-2 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors" title="Close">✕</button>
-                </div>
-                {activeVariant && (
-                  <div className="p-4 bg-muted/10">
-                    <p className="text-[10px] text-muted-foreground font-mono mb-3 italic">{activeVariant.style}</p>
-                    <p className="text-sm font-sans text-foreground/90 leading-relaxed">{activeVariant.message}</p>
-                    <div className="flex items-center justify-between mt-4">
-                      <Button variant="ghost" size="sm" className="h-7 text-xs font-mono text-muted-foreground" onClick={handleGenerateResponse} disabled={generateResponse.isPending}>
-                        {generateResponse.isPending ? "REGENERATING..." : "REGENERATE"}
-                      </Button>
-                      <div className="flex items-center gap-2">
-                        {mailtoHref && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs font-mono border-emerald-500/40 text-emerald-400" asChild>
-                            <a href={mailtoHref}><Send className="h-3 w-3 mr-1.5" />SEND_EMAIL</a>
-                          </Button>
-                        )}
-                        <Button size="sm" className="h-7 text-xs font-mono bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => handleCopy(activeVariant.message, activeTab)}>
-                          {copiedIndex === activeTab ? <><Check className="h-3 w-3 mr-1.5" />COPIED</> : <><Copy className="h-3 w-3 mr-1.5" />COPY</>}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </>
@@ -478,95 +282,15 @@ export function LeadCard({ lead, statusSelector, selected, onSelect }: LeadCardP
   );
 }
 
-interface ScoreBarProps {
-  phrase: string;
-  score: number;
-  isPrimary: boolean;
-}
-
-function ScoreBar({ phrase, score, isPrimary }: ScoreBarProps) {
-  const pct = Math.round((score / 10) * 100);
-  const barColor = score >= 8 ? "bg-primary" : score >= 5 ? "bg-amber-500" : "bg-muted-foreground/40";
-  return (
-    <div className={cn(
-      "rounded px-3 py-2 border",
-      isPrimary ? "border-cyan-500/30 bg-cyan-500/5" : "border-border/40 bg-muted/10"
-    )}>
-      <div className="flex items-center justify-between mb-1.5 gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Hash className="h-2.5 w-2.5 text-cyan-400/60 shrink-0" />
-          <span className="text-xs font-mono text-foreground/90 truncate">{phrase}</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {isPrimary && (
-            <span className="text-[9px] font-mono text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-1.5 py-0.5 rounded tracking-wider">
-              WINNER
-            </span>
-          )}
-          <span className={cn(
-            "text-xs font-mono font-bold",
-            score >= 8 ? "text-primary" : score >= 5 ? "text-amber-500" : "text-muted-foreground"
-          )}>
-            {score}/10
-          </span>
-        </div>
-      </div>
-      <div className="h-1 rounded-full bg-muted/40 overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }}
-      className="text-muted-foreground hover:text-foreground transition-colors"
-    >
-      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-    </button>
-  );
+  return <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1400); }}>{copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}</Button>;
 }
 
-interface EnrichRowProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  copyable?: boolean;
-  href?: string;
+function EnrichRow({ icon, label, value, href, copyable }: { icon: React.ReactNode; label: string; value: string; href?: string; copyable?: boolean }) {
+  return <div className="flex items-start gap-2 text-xs"><div className="text-muted-foreground mt-0.5">{icon}</div><div className="min-w-0 flex-1"><div className="text-[9px] font-mono text-muted-foreground/60 mb-0.5">{label}</div>{href ? <a href={href} target="_blank" rel="noreferrer" className="text-foreground/90 hover:underline break-all">{value}</a> : <div className="flex items-center gap-2"><span className="text-foreground/90 break-all">{value}</span>{copyable && <CopyButton text={value} />}</div>}</div></div>;
 }
 
-function EnrichRow({ icon, label, value, copyable, href }: EnrichRowProps) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="flex items-start gap-2 min-w-0">
-      <div className="text-emerald-400/60 mt-0.5 shrink-0">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="text-[9px] font-mono text-muted-foreground/60 tracking-widest mb-0.5">{label}</div>
-        {href
-          ? <a href={href} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline truncate block font-mono">{value}</a>
-          : <span className="text-xs text-foreground font-mono truncate block">{value}</span>
-        }
-      </div>
-      {copyable && (
-        <button
-          onClick={async e => {
-            e.preventDefault();
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
-          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
-        >
-          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-        </button>
-      )}
-    </div>
-  );
+function ScoreBar({ phrase, score, isPrimary }: { phrase: string; score: number; isPrimary: boolean }) {
+  return <div className="flex items-center gap-3"><span className="text-xs text-foreground/90 min-w-0 flex-1">{phrase}</span><div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden"><div className={cn("h-full rounded-full", isPrimary ? "bg-cyan-400" : "bg-cyan-500/60")} style={{ width: `${Math.min(100, score * 10)}%` }} /></div><span className="text-[10px] font-mono text-muted-foreground w-7 text-right">{score}</span></div>;
 }

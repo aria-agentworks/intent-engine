@@ -35,6 +35,8 @@ let cachedLeads: ScoredLead[] = [];
 let cachedSourceMeta: SourceMeta[] = [];
 let lastFetchedAt: Date | null = null;
 
+type SavedLeadRow = typeof savedLeadsTable.$inferSelect;
+
 async function getLeads(): Promise<ScoredLead[]> {
   const now = new Date();
   const stale = !lastFetchedAt || now.getTime() - lastFetchedAt.getTime() > 5 * 60 * 1000;
@@ -51,10 +53,49 @@ async function getLeads(): Promise<ScoredLead[]> {
     const saved = await db.select({ id: savedLeadsTable.id }).from(savedLeadsTable);
     saved.forEach((s) => savedIds.add(s.id));
   } catch {
-    // DB might not be ready yet
   }
 
   return cachedLeads.map((l) => ({ ...l, saved: savedIds.has(l.id) }));
+}
+
+function savedRowToLead(row: SavedLeadRow) {
+  return {
+    id: row.id,
+    source: row.source,
+    text: row.text,
+    url: row.url ?? null,
+    contact: row.contact ?? null,
+    subreddit: row.subreddit ?? null,
+    author: row.author ?? null,
+    created_at: row.createdAt.toISOString(),
+    intent_score: Number.parseInt(row.intentScore, 10),
+    intent_label: row.intentLabel,
+    saved: true,
+  };
+}
+
+function buildNurtureSequence(lead: { source: string; text: string; author: string | null; url: string | null; contact: string | null }) {
+  const variants = generateVariants(lead.text, lead.source);
+  const angle = variants[0]?.message ?? generateResponse(lead.text, lead.source);
+  const subject = lead.author ? `Following up on your post, ${lead.author}` : "Quick follow-up";
+  const emails = [
+    {
+      step: 1,
+      subject,
+      message: `${angle}\n\nIf helpful, I can send a quick walkthrough or a fit check for your setup.`,
+    },
+    {
+      step: 2,
+      subject: `Re: ${subject}`,
+      message: `Just bumping this once in case it got buried. If you're still exploring options, happy to share a short demo.`,
+    },
+    {
+      step: 3,
+      subject: `Last note — ${subject}`,
+      message: `Closing the loop on this. If timing changes, reply anytime and I’ll send details over.`,
+    },
+  ];
+  return { subject, angle, emails, source: lead.source, contact: lead.contact, url: lead.url };
 }
 
 router.get("/leads", async (req, res): Promise<void> => {
@@ -114,9 +155,7 @@ router.get("/leads/stats", async (_req, res): Promise<void> => {
   }
 
   const savedRows = await db.select().from(savedLeadsTable);
-  const avgScore = leads.length > 0
-    ? leads.reduce((acc, l) => acc + l.intent_score, 0) / leads.length
-    : 0;
+  const avgScore = leads.length > 0 ? leads.reduce((acc, l) => acc + l.intent_score, 0) / leads.length : 0;
 
   res.json(
     GetLeadsStatsResponse.parse({
@@ -134,21 +173,7 @@ router.get("/leads/stats", async (_req, res): Promise<void> => {
 
 router.get("/leads/saved", async (_req, res): Promise<void> => {
   const savedRows = await db.select().from(savedLeadsTable);
-
-  const leads = savedRows.map((row) => ({
-    id: row.id,
-    source: row.source,
-    text: row.text,
-    url: row.url ?? null,
-    contact: row.contact ?? null,
-    intent_score: parseInt(row.intentScore, 10),
-    intent_label: row.intentLabel,
-    subreddit: row.subreddit ?? null,
-    author: row.author ?? null,
-    created_at: row.createdAt.toISOString(),
-    saved: true,
-    status: row.status ?? "new",
-  }));
+  const leads = savedRows.map(savedRowToLead).map((lead) => ({ ...lead, status: "new" }));
 
   res.json(
     GetSavedLeadsResponse.parse({
@@ -192,10 +217,7 @@ router.post("/leads/:id/save", async (req, res): Promise<void> => {
   }
 
   const { id } = params.data;
-  const existing = await db
-    .select()
-    .from(savedLeadsTable)
-    .where(eq(savedLeadsTable.id, id));
+  const existing = await db.select().from(savedLeadsTable).where(eq(savedLeadsTable.id, id));
 
   if (existing.length > 0) {
     await db.delete(savedLeadsTable).where(eq(savedLeadsTable.id, id));
@@ -221,6 +243,7 @@ router.post("/leads/:id/save", async (req, res): Promise<void> => {
     author: lead.author ?? null,
     saved: true,
     createdAt: new Date(lead.created_at),
+    status: "new",
   });
 
   res.json(SaveLeadResponse.parse({ saved: true, lead_id: id }));
@@ -249,6 +272,31 @@ router.post("/leads/:id/respond", async (req, res): Promise<void> => {
 
   const variants = generateVariants(lead.text, lead.source);
   res.json(GenerateResponseResponse.parse({ message: variants[0].message, variants, lead_id: id }));
+});
+
+router.post("/leads/:id/nurture", async (req, res): Promise<void> => {
+  const params = SaveLeadParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const { id } = params.data;
+  const lead = cachedLeads.find((l) => l.id === id);
+  const savedRows = lead ? [] : await db.select().from(savedLeadsTable).where(eq(savedLeadsTable.id, id));
+  const saved = savedRows[0] ?? null;
+  const sourceLead = lead ?? (saved ? savedRowToLead(saved) : null);
+
+  if (!sourceLead) {
+    res.status(404).json({ error: "Lead not found" });
+    return;
+  }
+
+  const sequence = buildNurtureSequence(sourceLead);
+  res.json({
+    lead_id: id,
+    sequence,
+  });
 });
 
 router.get("/leads/:id/score-breakdown", async (req, res): Promise<void> => {
@@ -328,7 +376,6 @@ router.get("/leads/:id/enrich", async (req, res): Promise<void> => {
 });
 
 router.get("/sources", async (_req, res): Promise<void> => {
-  // Ensure we have fresh source meta by calling getLeads if not yet cached
   if (cachedSourceMeta.length === 0) {
     await getLeads();
   }

@@ -16,8 +16,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
       
       - name: Run Reddit scraper
         run: |
           cd artifacts/api-server/src/lib
           npm run scrape-reddit -- --subreddits entrepreneur,startups,smallbusiness --keywords "automate workflow,need tool,healthcare billing" --output leads.json --log scraper.log
+      
+      - name: Commit and push results
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add leads.json scraper.log
+          git commit -m "Auto-commit Reddit leads [skip ci]" || echo "No changes to commit"
+          git push origin main

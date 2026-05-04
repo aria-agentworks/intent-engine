@@ -1,0 +1,13 @@
+name: Reddit Lead Scraper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-scraper:
+    name: Trigger intent-engine Reddit scraper
+    uses: ./.github/workflows/run-lead-scraper.yml
+    env:
+      RUNNER_IP: 139.59.18.31
+    run: |
+      cd artifacts/api-server/src/lib && npm run scrape-reddit -- --subreddits entrepreneur,startups,smallbusiness --keywords "automate workflow||need tool||healthcare billing" --output leads.json --log scraper.log
